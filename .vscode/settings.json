@@ -1,0 +1,8 @@
+{
+    "explicitFolding.rules": {
+        "*": {
+        "begin": "{{{",
+        "end": "}}}"
+        },
+    }
+}
