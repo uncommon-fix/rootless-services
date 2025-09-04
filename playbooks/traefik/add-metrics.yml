@@ -1,0 +1,15 @@
+---
+- name: Add Metrics to Traefik Config
+  hosts: localhost
+  tasks:
+    - name: Ensure metrics configuration exists
+      community.general.yaml:
+        path: "./traefik/config/traefik.yml"
+        key: metrics
+        value:
+          prometheus:
+            entryPoint: metrics
+            buckets: [0.1, 0.3, 1.2, 5.0]
+            addEntryPointsLabels: true
+            addServicesLabels: true
+        backup: yes

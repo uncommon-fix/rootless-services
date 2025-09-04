@@ -1,0 +1,29 @@
+---
+- hosts: localhost
+  connection: local
+  become: no
+  gather_facts: yes
+  
+  vars_prompt:
+    - name: service_choice
+      prompt: >
+        Select service to install:
+        1) Traefik (Reverse Proxy)
+        Enter choice (1-?)
+      default: "1"
+      private: no
+
+  vars:
+    service_map:
+      "1": "traefik"
+    install_service: "{{ service_map[service_choice|default('1')] }}"
+
+  tasks:
+    - name: Show selected service
+      debug:
+        msg: "Installing {{ install_service }}"
+
+    - name: Install Traefik
+      include: playbooks/traefik/install.yml
+      when: install_service == "traefik"
+      tags: [traefik]

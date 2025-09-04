@@ -1,0 +1,90 @@
+---
+- name: Prompt for Cloudflare DNS API Token
+  pause:
+    prompt: "Cloudflare DNS API Token"
+    echo: no
+  register: cloudflare_token_input
+
+- name: Prompt for Docker Network
+  pause:
+    prompt: "Docker Network (default: traefik)"
+  register: docker_network_input
+
+- name: Prompt for IPv6 setting
+  pause:
+    prompt: "Enable IPv6? (true/false)"
+  register: ipv6_input
+
+- name: Prompt for Traefik Dashboard URL
+  pause:
+    prompt: "Traefik Dashboard URL"
+  register: dashboard_input
+
+- name: Prompt for IPv4 Address
+  pause:
+    prompt: "IPv4 Address (default: 0.0.0.0)"
+  register: ipv4_input
+
+- name: Prompt for IPv6 Address
+  pause:
+    prompt: "IPv6 Address (default: ::)"
+  register: ipv6_input
+
+- name: Prompt for email
+  pause:
+    prompt: "Email for Let's Encrypt"
+  register: email_input
+
+- name: Set traefik variables
+  set_fact:
+    traefik:
+      version: "v3.3"
+      collect_anonymous_stats: true
+      cert_resolver: "letsencrypt-dns-cloudflare"
+      docker_network: "{{ docker_network_input.user_input | default('traefik') }}"
+      enable_ipv6: "{{ ipv6_input.user_input | default('false') | bool }}"
+      ipv4: "{{ ipv4_input.user_input | default('0.0.0.0') }}"
+      ipv6: "{{ ipv6_input.user_input | default('::') }}"
+      dashboard: "{{ dashboard_input.user_input }}"
+      email: "{{ email_input.user_input }}"
+    cloudflare_dns_api_token: "{{ cloudflare_token_input.user_input }}"
+
+- name: Create traefik directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "./traefik"
+    - "./traefik/config"
+
+- name: Process templates
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    mode: "0644"
+  loop:
+    - { src: "playbooks/traefik/templates/.env.j2", dest: "./traefik/.env" }
+    - {
+        src: "playbooks/traefik/templates/docker-compose.yml.j2",
+        dest: "./traefik/docker-compose.yml",
+      }
+    - {
+        src: "playbooks/traefik/templates/config/dynamic.yml.j2",
+        dest: "./traefik/config/dynamic.yml",
+      }
+    - {
+        src: "playbooks/traefik/templates/config/traefik.yml.j2",
+        dest: "./traefik/config/traefik.yml",
+      }
+
+- name: Display completion message
+  debug:
+    msg: |
+      Traefik installation completed!
+
+      Next steps:
+      1. cd traefik
+      2. docker-compose up -d
+
+      Dashboard URL: {{ traefik.dashboard if traefik.dashboard else 'Not configured' }}
