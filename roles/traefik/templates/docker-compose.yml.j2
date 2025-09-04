@@ -1,0 +1,77 @@
+services:
+  instance:
+    # version: https://doc.traefik.io/traefik/deprecation/releases
+    # docker tags: https://hub.docker.com/_/traefik/tags
+    # cloudflare vars: https://go-acme.github.io/lego/dns/cloudflare/
+    image: traefik:{{ traefik.version | default('v3.3') }}
+    container_name: traefik
+    restart: always
+    environment:
+      # Account key - Cloudflare API key
+      # CLOUDFLARE_API_KEY: ${CLOUDFLARE_API_KEY}1
+      # CLOUDFLARE_EMAIL: ${CLOUDFLARE_EMAIL}
+      # All zones - Zone:Zone:Read, Zone:DNS:Edit
+      CLOUDFLARE_DNS_API_TOKEN: ${CLOUDFLARE_DNS_API_TOKEN}
+    volumes:
+      - ./config/traefik.yml:/etc/traefik/traefik.yml
+      - ./config/dynamic.yml:/etc/traefik/dynamic.yml
+      - ./logs:/var/log/traefik
+      - letsencrypt:/letsencrypt
+    {% if traefik.dashboard is defined and traefik.dashboard %}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik-dashboard.rule=Host(`{{ traefik.dashboard }}`)"
+      - "traefik.http.routers.traefik-dashboard.service=api@internal"
+      - "traefik.http.routers.traefik-dashboard.entrypoints=websecure"
+      - "traefik.http.routers.traefik-dashboard.tls=true"
+      - "traefik.http.routers.traefik-dashboard.tls.certresolver={{ traefik.cert_resolver | default('letsencrypt-dns-cloudflare') }}:"
+      - "traefik.http.routers.traefik-health.rule=Host(`{{ traefik.dashboard }}`) && Path(`/ping`)"
+      - "traefik.http.routers.traefik-health.service=ping@internal"
+      - "traefik.http.routers.traefik-health.entrypoints=websecure"
+      - "traefik.http.routers.traefik-health.tls.certresolver={{ traefik.cert_resolver | default('letsencrypt-dns-cloudflare') }}:"
+    {% endif %}
+    networks:
+      - traefik
+      - internal
+    ports:
+      - "{{ traefik.ipv4 }}:80:80"
+      - "{{ traefik.ipv4 }}:443:443"
+    {% if traefik.enable_ipv6 is defined and traefik.enable_ipv6 %}
+      - "{{ traefik.ipv6 }}:80:80"
+      - "{{ traefik.ipv6 }}:443:443"
+    {% endif %}
+    expose:
+      - 8082
+    depends_on:
+      socket-proxy:
+        condition: "service_healthy"
+
+  socket-proxy:
+    # version: https://github.com/Tecnativa/docker-socket-proxy/releases/latest
+    # docker tags: https://hub.docker.com/r/tecnativa/docker-socket-proxy/tags
+    image: tecnativa/docker-socket-proxy
+    restart: always
+    volumes:
+      - $XDG_RUNTIME_DIR/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - LOG_LEVEL=info
+      - CONTAINERS=1      # Required: List containers and read their labels
+      - NETWORKS=1        # Required: Resolve backend IP addresses via networks
+      - VERSION=1         # Not strictly required, but Traefik checks the API version
+      - EVENTS=1          # Required for Traefik to get updates dynamically
+      - PING=1            # Optional, but good for health/liveness
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2375"]
+      interval: 4s
+      timeout: 1s
+      retries: 5
+    networks:
+      - internal
+
+volumes:
+  letsencrypt: {}
+
+networks:
+  internal: {}
+  traefik:
+    external: true

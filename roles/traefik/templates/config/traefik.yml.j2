@@ -1,0 +1,71 @@
+# =====================================================
+# Traefik configuration file {{ traefik.version | default('v3.3') }}
+# Author: Uncommon Fix (https://www.youtube.com/@uncommonfix)
+# Last Modified: 2025-09-02
+# =====================================================
+#
+# DISCLAIMER:
+# This configuration is provided as-is without any warranty of any kind.
+# The author takes no responsibility for any issues, misconfigurations,
+# or security vulnerabilities that may arise from using this configuration.
+# It is the user's responsibility to understand and verify all settings
+# before deployment to their environment. Users should ensure proper
+# security measures are in place before using in production.
+# =====================================================
+
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: {{ traefik.collect_anonymous_stats | default(true) | lower }}
+
+api:
+  dashboard: {{ true if traefik.dashboard is defined and traefik.dashboard else false }}
+  insecure: false
+
+entryPoints:
+  web:
+    address: ":80"
+  websecure:
+    address: ":443"
+  metrics:
+    address: ":8082"
+
+ping:
+  entryPoint: websecure
+
+providers:
+  docker:
+    endpoint: "tcp://socket-proxy:2375"
+    network: "{{ traefik.docker_network | default('traefik') }}"
+    exposedByDefault: false
+    watch: true
+  file:
+    filename: "/etc/traefik/dynamic.yml"
+    watch: true
+
+certificatesResolvers:
+  {{ traefik.cert_resolver | default('letsencrypt-dns-cloudflare') }}:
+    acme:
+      email: "{{ traefik.email | default('webmaster@example.com') }}"
+      storage: "/letsencrypt/acme.json"
+      dnsChallenge:
+        provider: cloudflare
+        delayBeforeCheck: 0
+        resolvers:
+          - "1.1.1.1:53"
+          - "8.8.8.8:53"
+
+log:
+  format: json
+  level: DEBUG
+
+accessLog:
+  filePath: "/var/log/traefik/traefik-access.log"
+  format: json
+  bufferingSize: 100
+  fields:
+    defaultMode: keepa
+    headers:
+      defaultMode: keep
+      names:
+        User-Agent: redact
+        Authorization: drop
